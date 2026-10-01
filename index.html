@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>タスク管理</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #fff; --text: #1d2330; --muted: #6b7280;
+    --line: #e3e6eb; --accent: #2563eb; --danger: #dc2626; --ok: #16a34a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12151b; --card: #1b2029; --text: #e7eaf0; --muted: #9aa3b2;
+      --line: #2a313d; --accent: #60a5fa; --danger: #f87171; --ok: #4ade80;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 20px; margin: 0 0 16px; }
+  form { display: flex; flex-wrap: wrap; gap: 8px; background: var(--card);
+    border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  input { font: inherit; color: inherit; background: transparent;
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  #title { flex: 1 1 220px; }
+  #minutes { width: 80px; }
+  button { font: inherit; border: 0; border-radius: 8px; padding: 8px 12px;
+    cursor: pointer; background: var(--line); color: var(--text); }
+  button.primary { background: var(--accent); color: #fff; }
+  .presets { display: flex; gap: 6px; flex-wrap: wrap; width: 100%; }
+  .presets button { padding: 4px 10px; font-size: 14px; }
+  ul { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 8px; }
+  li { background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px; display: flex; align-items: center; gap: 12px; }
+  li .name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  li .time { font-variant-numeric: tabular-nums; font-size: 20px; min-width: 64px; text-align: right; }
+  li.running { border-color: var(--accent); }
+  li.overdue .time { color: var(--danger); }
+  li.done { opacity: .5; }
+  li.done .name { text-decoration: line-through; }
+  .actions { display: flex; gap: 6px; }
+  .actions button { padding: 6px 10px; font-size: 14px; }
+  .hint { color: var(--muted); font-size: 13px; margin-top: 12px; }
+  #alarm { position: fixed; inset: 0; display: none; place-items: center;
+    background: var(--danger); color: #fff; z-index: 10; text-align: center; padding: 16px; }
+  #alarm.show { display: grid; animation: flash 1s steps(2) infinite; }
+  #alarm h2 { font-size: 32px; margin: 0 0 8px; overflow-wrap: anywhere; }
+  #alarm button { background: #fff; color: var(--danger); font-size: 18px; padding: 12px 20px; margin: 4px; }
+  @keyframes flash { 50% { filter: brightness(.8); } }
+</style>
+</head>
+<body>
+<main>
+  <h1>短時間タスク</h1>
+  <form id="add">
+    <input id="title" placeholder="やること" required autocomplete="off">
+    <input id="minutes" type="number" min="1" max="600" value="15" aria-label="分">
+    <button class="primary">追加して開始</button>
+    <div class="presets">
+      <button type="button" data-min="5">5分</button>
+      <button type="button" data-min="15">15分</button>
+      <button type="button" data-min="25">25分</button>
+      <button type="button" data-min="45">45分</button>
+    </div>
+  </form>
+  <ul id="list"></ul>
+  <p class="hint">時間切れになると、画面全体の点滅・アラーム音・タブタイトル点滅で知らせます（OS通知が使えない環境向け）。
+    このタブは開いたままにしてください。<span id="notifHint"></span></p>
+</main>
+
+<div id="alarm" role="alertdialog" aria-live="assertive">
+  <div>
+    <h2 id="alarmTitle"></h2>
+    <p>時間になりました</p>
+    <button id="snooze">+5分延長</button>
+    <button id="finish">完了にする</button>
+    <button id="dismiss">止める</button>
+  </div>
+</div>
+
+<script>
+const KEY = 'tasuku-kannri:v1';
+let tasks = load();
+let audio = null;          // AudioContext（最初のユーザー操作で作成）
+let ringing = null;        // 鳴動中のタスクID
+let titleTimer = null;
+const scheduled = new Map(); // taskId -> 予約済みオシレーター群
+
+function load() {
+  try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; }
+}
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(tasks)); } catch {}
+}
+const $ = s => document.querySelector(s);
+
+function ensureAudio() {
+  if (!audio) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (AC) audio = new AC();
+  }
+  if (audio && audio.state === 'suspended') audio.resume();
+}
+
+// 終了時刻にビープ音をAudioContext上で予約する。
+// バックグラウンドタブではsetIntervalが間引かれるが、予約済みの音は正確に鳴る。
+function scheduleBeeps(task) {
+  cancelBeeps(task.id);
+  if (!audio || !task.endAt) return;
+  const delay = (task.endAt - Date.now()) / 1000;
+  if (delay < 0) return;
+  const start = audio.currentTime + delay;
+  const nodes = [];
+  for (let i = 0; i < 30; i++) {          // 約30秒鳴らす
+    for (const off of [0, 0.25]) {
+      const osc = audio.createOscillator();
+      const gain = audio.createGain();
+      osc.frequency.value = 880;
+      gain.gain.value = 0.2;
+      osc.connect(gain).connect(audio.destination);
+      osc.start(start + i + off);
+      osc.stop(start + i + off + 0.15);
+      nodes.push(osc);
+    }
+  }
+  scheduled.set(task.id, nodes);
+}
+function cancelBeeps(id) {
+  for (const osc of scheduled.get(id) || []) { try { osc.stop(); } catch {} }
+  scheduled.delete(id);
+}
+
+function remaining(t) {
+  if (t.done) return 0;
+  return t.endAt ? t.endAt - Date.now() : t.leftMs;
+}
+function fmt(ms) {
+  const neg = ms < 0; ms = Math.abs(ms);
+  const s = Math.floor(ms / 1000);
+  return (neg ? '-' : '') + Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+
+function render() {
+  const list = $('#list');
+  list.replaceChildren(...tasks.map(t => {
+    const li = document.createElement('li');
+    const left = remaining(t);
+    li.className = [t.done && 'done', t.endAt && 'running', !t.done && left < 0 && 'overdue']
+      .filter(Boolean).join(' ');
+    li.innerHTML = `<span class="name"></span><span class="time">${t.done ? '✓' : fmt(left)}</span>
+      <span class="actions"></span>`;
+    li.querySelector('.name').textContent = t.title;
+    const actions = li.querySelector('.actions');
+    const btn = (label, fn) => {
+      const b = document.createElement('button');
+      b.textContent = label; b.onclick = () => { ensureAudio(); fn(); save(); render(); };
+      actions.append(b);
+    };
+    if (!t.done) {
+      if (t.endAt) btn('一時停止', () => pause(t));
+      else btn('開始', () => start(t));
+      btn('完了', () => complete(t));
+    }
+    btn('削除', () => { stopAlarm(t.id); cancelBeeps(t.id); tasks = tasks.filter(x => x !== t); });
+    return li;
+  }));
+}
+
+function start(t) {
+  t.endAt = Date.now() + t.leftMs;
+  t.fired = false;
+  scheduleBeeps(t);
+}
+function pause(t) {
+  t.leftMs = Math.max(0, t.endAt - Date.now());
+  t.endAt = null;
+  cancelBeeps(t.id);
+}
+function complete(t) {
+  t.done = true; t.endAt = null;
+  cancelBeeps(t.id); stopAlarm(t.id);
+}
+
+function fire(t) {
+  t.fired = true; save();
+  ringing = t.id;
+  $('#alarmTitle').textContent = t.title;
+  $('#alarm').classList.add('show');
+  if (!scheduled.has(t.id)) scheduleBeepsNow(t);
+  navigator.vibrate?.([300, 200, 300, 200, 300]);
+  // タブタイトル点滅（別タブを見ていても気付けるように）
+  clearInterval(titleTimer);
+  let on = false;
+  titleTimer = setInterval(() => { document.title = (on = !on) ? '⏰ 時間です！' : t.title; }, 800);
+  // OS通知が使えればおまけで出す
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try { new Notification('時間です', { body: t.title, requireInteraction: true }); } catch {}
+  }
+}
+function scheduleBeepsNow(t) {
+  const endAt = t.endAt; t.endAt = Date.now() + 50; scheduleBeeps(t); t.endAt = endAt;
+}
+function stopAlarm(id) {
+  if (id != null && ringing !== id) return;
+  if (ringing != null) cancelBeeps(ringing);
+  ringing = null;
+  $('#alarm').classList.remove('show');
+  clearInterval(titleTimer); titleTimer = null;
+  document.title = 'タスク管理';
+}
+
+function tick() {
+  for (const t of tasks) {
+    if (!t.done && t.endAt && !t.fired && t.endAt <= Date.now()) fire(t);
+  }
+  render();
+}
+
+$('#add').onsubmit = e => {
+  e.preventDefault();
+  ensureAudio();
+  const title = $('#title').value.trim();
+  const min = Math.max(1, Number($('#minutes').value) || 15);
+  if (!title) return;
+  const t = { id: Date.now() + Math.random(), title, leftMs: min * 60000, endAt: null, done: false, fired: false };
+  tasks.push(t); start(t); save(); render();
+  $('#title').value = ''; $('#title').focus();
+};
+document.querySelectorAll('.presets button').forEach(b =>
+  b.onclick = () => { $('#minutes').value = b.dataset.min; $('#title').focus(); });
+
+const ringingTask = () => tasks.find(t => t.id === ringing);
+$('#dismiss').onclick = () => stopAlarm();
+$('#finish').onclick = () => { const t = ringingTask(); if (t) complete(t); stopAlarm(); save(); render(); };
+$('#snooze').onclick = () => {
+  const t = ringingTask(); stopAlarm();
+  if (t) { t.leftMs = 5 * 60000; start(t); save(); render(); }
+};
+
+// 通知APIが使える環境なら許可ボタンを出す（使えなくても本体は動く）
+if ('Notification' in window && Notification.permission === 'default') {
+  const b = document.createElement('button');
+  b.textContent = 'OS通知も試す';
+  b.style.marginLeft = '8px';
+  b.onclick = () => Notification.requestPermission().then(() => b.remove()).catch(() => b.remove());
+  $('#notifHint').append(b);
+}
+
+// リロード後: AudioContextはユーザー操作まで作れないので、最初のクリックで音を再予約
+document.addEventListener('pointerdown', () => {
+  const fresh = !audio; ensureAudio();
+  if (fresh) tasks.filter(t => t.endAt && !t.done && !t.fired).forEach(scheduleBeeps);
+}, { once: true });
+
+render();
+setInterval(tick, 500);
+</script>
+</body>
+</html>
