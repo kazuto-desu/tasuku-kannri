@@ -12,7 +12,7 @@
   --bg:#F6F7FA; --surface:#FFFFFF; --ink:#1B2433; --muted:#5D6778; --line:#E2E6EE; --line-strong:#C9D0DC;
   --sure:#1F4E9F; --tentative:#A9C6EE; --tentative-edge:#4A7CC9; --done:#A3AAB6;
   --milestone:#E0661B; --event:#F2B38A; --today:#D93B3B; --today-tint:rgba(217,59,59,.07);
-  --warn-bg:#FDECEC; --warn:#B42318; --chip:#EEF2F8; --focus:#1F4E9F;
+  --warn-bg:#FDECEC; --warn:#B42318; --chip:#EEF2F8; --focus:#1F4E9F; --on-accent:#FFFFFF;
   --font:"BIZ UDPGothic","Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",system-ui,sans-serif;
   --meta-w:260px; --row-h:44px;
 }
@@ -20,12 +20,12 @@
   --bg:#12161D; --surface:#1A2029; --ink:#E7EBF2; --muted:#9AA4B5; --line:#2A3240; --line-strong:#3A4454;
   --sure:#5B8FE6; --tentative:#2F4B74; --tentative-edge:#7DA6EE; --done:#5A6272;
   --milestone:#F2884A; --event:#7A4A2E; --today:#F06A6A; --today-tint:rgba(240,106,106,.09);
-  --warn-bg:#3A1F22; --warn:#FF8A80; --chip:#232B37; --focus:#7DA6EE; color-scheme:dark}}
+  --warn-bg:#3A1F22; --warn:#FF8A80; --chip:#232B37; --focus:#7DA6EE; --on-accent:#12161D; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#12161D; --surface:#1A2029; --ink:#E7EBF2; --muted:#9AA4B5; --line:#2A3240; --line-strong:#3A4454;
   --sure:#5B8FE6; --tentative:#2F4B74; --tentative-edge:#7DA6EE; --done:#5A6272;
   --milestone:#F2884A; --event:#7A4A2E; --today:#F06A6A; --today-tint:rgba(240,106,106,.09);
-  --warn-bg:#3A1F22; --warn:#FF8A80; --chip:#232B37; --focus:#7DA6EE; color-scheme:dark}
+  --warn-bg:#3A1F22; --warn:#FF8A80; --chip:#232B37; --focus:#7DA6EE; --on-accent:#12161D; color-scheme:dark}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html{color-scheme:light}
@@ -72,7 +72,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .st{font-size:10.5px;border-radius:4px;padding:0 6px;background:var(--chip)}
 .st.s-done{background:var(--done);color:#fff}
 .st.s-doing{background:var(--sure);color:#fff}
-.st.s-late{background:var(--warn);color:#fff}
+.st.s-late{background:var(--warn);color:var(--on-accent)}
 .vline{position:absolute;top:0;bottom:0;width:1px;background:var(--line);pointer-events:none}
 .vline.m{background:var(--line-strong)}
 .todaycol{position:absolute;top:0;bottom:0;background:var(--today-tint);border-left:2px dashed var(--today);pointer-events:none;z-index:1}
@@ -142,9 +142,9 @@ table.list tr.done td{color:var(--muted)}
 table.list tr.late td.tname{color:var(--warn);font-weight:700}
 table.list td.memo{color:var(--muted);font-size:12px;max-width:320px}
 .stbtn{border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);border-radius:999px;font:inherit;font-size:11.5px;padding:2px 10px;cursor:pointer;white-space:nowrap}
-.stbtn.s-done{background:var(--done);border-color:var(--done);color:#fff}
-.stbtn.s-doing{background:var(--sure);border-color:var(--sure);color:#fff}
-.stbtn.s-late{background:var(--warn);border-color:var(--warn);color:#fff}
+.stbtn.s-done{background:var(--done);border-color:var(--done);color:var(--on-accent)}
+.stbtn.s-doing{background:var(--sure);border-color:var(--sure);color:var(--on-accent)}
+.stbtn.s-late{background:var(--warn);border-color:var(--warn);color:var(--on-accent)}
 /* calendar view */
 .calhead{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px;flex-wrap:wrap}
 .calhead h2{margin:0;font-size:18px}
@@ -170,11 +170,20 @@ table.list td.memo{color:var(--muted);font-size:12px;max-width:320px}
 .more{font-size:10.5px;color:var(--muted)}
 /* todo view */
 .todo{display:grid;gap:18px;padding:16px}
+.grp{border-radius:12px;padding:0 0 12px;background:var(--gbg);border:1px solid var(--gline)}
+.grp>h3{margin:0 0 12px;padding:10px 14px;border-radius:11px 11px 0 0;background:var(--ghead);color:var(--gfg);font-size:15px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.todo .grp>h3 span{color:var(--gfg);opacity:.9;font-weight:700}
+.grp>.cards,.grp>.viewhint{padding:0 12px}
+.grp.g-late{--gbg:var(--warn-bg);--gline:var(--warn);--ghead:var(--warn);--gfg:var(--on-accent)}
+.grp.g-now{--gbg:color-mix(in srgb,var(--milestone) 10%,var(--surface));--gline:var(--milestone);--ghead:var(--milestone);--gfg:var(--on-accent)}
+.grp.g-next{--gbg:color-mix(in srgb,var(--sure) 9%,var(--surface));--gline:var(--sure);--ghead:var(--sure);--gfg:var(--on-accent)}
+.grp.g-soon{--gbg:var(--chip);--gline:var(--line-strong);--ghead:var(--line-strong);--gfg:var(--ink)}
+.grp.g-later{--gbg:var(--surface);--gline:var(--line);--ghead:var(--chip);--gfg:var(--muted)}
 .todo h3{margin:0 0 8px;font-size:14px;display:flex;gap:8px;align-items:baseline}
 .todo h3 span{font-size:12px;color:var(--muted);font-weight:400}
 .todo h3.warn{color:var(--warn)}
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
-.card{border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;gap:6px;background:var(--surface);cursor:pointer;min-width:0}
+.card{border:1px solid var(--line);box-shadow:0 1px 2px rgba(0,0,0,.05);border-radius:10px;padding:10px 12px;display:grid;gap:6px;background:var(--surface);cursor:pointer;min-width:0}
 .card:hover{border-color:var(--line-strong)}
 .card.late{border-color:var(--warn);background:var(--warn-bg)}
 .card .ct{font-weight:700;font-size:14px}
@@ -266,7 +275,7 @@ details.donebox summary{cursor:pointer;font-weight:700;font-size:14px}
       <button type="button" data-v="gantt" aria-pressed="true">ガント</button>
       <button type="button" data-v="table" aria-pressed="false">表</button>
       <button type="button" data-v="cal" aria-pressed="false">カレンダー</button>
-      <button type="button" data-v="todo" aria-pressed="false">やること</button>
+      <button type="button" data-v="todo" aria-pressed="false">今週・来週</button>
     </div>
     <span class="viewhint" id="viewHint"></span>
   </div>
@@ -431,7 +440,7 @@ const SEED=[{"id": "t01", "name": "第1回打ち合わせ", "owner": "安部・�
     ["全"+total+"件","完了 "+done,"進行中 "+doing,"未着手 "+(total-done-doing)].forEach(t=>{const c=document.createElement("span");c.className="chip";c.textContent=t;s.appendChild(c)});
     if(late){const c=document.createElement("span");c.className="chip warn";c.textContent="遅れ "+late+"件";s.appendChild(c)}
   }
-  const HINT={gantt:"全体の流れと重なりを見る",table:"一覧で確認・並べ替え。見出しを押すと並び順が変わります",cal:"月ごとに、開始日・締切・イベントの日を見る",todo:"今週・来週に手をつけるものと、遅れているものを見る"};
+  const HINT={gantt:"全体の流れと重なりを見る",table:"一覧で確認・並べ替え。見出しを押すと並び順が変わります",cal:"月ごとに、開始日・締切・イベントの日を見る",todo:"遅れているもの → 今週 → 来週 → その先 の順に、手をつけるタスクを表示"};
   function visibleTasks(){
     let list=tasks.slice().sort((a,b)=>(toD(a.start)||9e15)-(toD(b.start)||9e15)||(toD(a.end)||0)-(toD(b.end)||0)||String(a.name).localeCompare(b.name,"ja"));
     if(filter==="安部"||filter==="鈴木") list=list.filter(t=>String(t.owner||"").includes(filter)||t.owner==="全員");
@@ -598,16 +607,17 @@ const SEED=[{"id": "t01", "name": "第1回打ち合わせ", "owner": "安部・�
     const take=(f)=>open.filter(t=>!used.has(t.id)&&f(t)).map(t=>{used.add(t.id);return t});
     const S=t=>toD(t.start),E=t=>toD(t.end)||toD(t.start);
     const groups=[
-      ["遅れている(締切を過ぎて未完了)","warn",take(isLate)],
-      ["今週("+fmtMD(w0)+"〜"+fmtMD(w1-DAY)+")",null,take(t=>S(t)<w1&&E(t)>=w0)],
-      ["来週("+fmtMD(w1)+"〜"+fmtMD(w2-DAY)+")",null,take(t=>S(t)<w2&&E(t)>=w1)],
-      ["4週間以内に始まる",null,take(t=>S(t)<w5)],
-      ["それ以降",null,take(()=>true)],
+      ["遅れている(締切を過ぎて未完了)","g-late",take(isLate)],
+      ["今週 "+fmtMD(w0)+"(月)〜"+fmtMD(w1-DAY)+"(日)","g-now",take(t=>S(t)<w1&&E(t)>=w0)],
+      ["来週 "+fmtMD(w1)+"(月)〜"+fmtMD(w2-DAY)+"(日)","g-next",take(t=>S(t)<w2&&E(t)>=w1)],
+      ["再来週〜4週間後までに始まる","g-soon",take(t=>S(t)<w5)],
+      ["それより先","g-later",take(()=>true)],
     ];
     groups.forEach(([title,cls,items])=>{
-      const sec=document.createElement("section");
-      const h=document.createElement("h3");if(cls)h.className=cls;h.textContent=title;const c=document.createElement("span");c.textContent=items.length+"件";h.appendChild(c);sec.appendChild(h);
-      if(!items.length){const p=document.createElement("div");p.className="viewhint";p.textContent="ありません";sec.appendChild(p)}
+      if(cls==="g-late"&&!items.length)return;
+      const sec=document.createElement("section");sec.className="grp "+cls;
+      const h=document.createElement("h3");h.textContent=title;const c=document.createElement("span");c.textContent=items.length+"件";h.appendChild(c);sec.appendChild(h);
+      if(!items.length){const p=document.createElement("div");p.className="viewhint";p.textContent="この期間に該当するタスクはありません";sec.appendChild(p)}
       else{const cards=document.createElement("div");cards.className="cards";items.sort((a,b)=>E(a)-E(b)).forEach(t=>cards.appendChild(card(t)));sec.appendChild(cards)}
       box.appendChild(sec);
     });
