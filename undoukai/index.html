@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>未来運動会 準備スケジュール</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap">
+<style>
+/* Layout: a working Gantt board — summary strip, sticky task column, scrollable week timeline, edit sheet */
+:root{
+  --bg:#F6F7FA; --surface:#FFFFFF; --ink:#1B2433; --muted:#5D6778; --line:#E2E6EE; --line-strong:#C9D0DC;
+  --sure:#1F4E9F; --tentative:#A9C6EE; --tentative-edge:#4A7CC9; --done:#A3AAB6;
+  --milestone:#E0661B; --event:#F2B38A; --today:#D93B3B; --today-tint:rgba(217,59,59,.07);
+  --warn-bg:#FDECEC; --warn:#B42318; --chip:#EEF2F8; --focus:#1F4E9F;
+  --font:"BIZ UDPGothic","Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",system-ui,sans-serif;
+  --meta-w:260px; --row-h:44px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12161D; --surface:#1A2029; --ink:#E7EBF2; --muted:#9AA4B5; --line:#2A3240; --line-strong:#3A4454;
+  --sure:#5B8FE6; --tentative:#2F4B74; --tentative-edge:#7DA6EE; --done:#5A6272;
+  --milestone:#F2884A; --event:#7A4A2E; --today:#F06A6A; --today-tint:rgba(240,106,106,.09);
+  --warn-bg:#3A1F22; --warn:#FF8A80; --chip:#232B37; --focus:#7DA6EE; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12161D; --surface:#1A2029; --ink:#E7EBF2; --muted:#9AA4B5; --line:#2A3240; --line-strong:#3A4454;
+  --sure:#5B8FE6; --tentative:#2F4B74; --tentative-edge:#7DA6EE; --done:#5A6272;
+  --milestone:#F2884A; --event:#7A4A2E; --today:#F06A6A; --today-tint:rgba(240,106,106,.09);
+  --warn-bg:#3A1F22; --warn:#FF8A80; --chip:#232B37; --focus:#7DA6EE; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{color-scheme:light}
+body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.5}
+.wrap{max-width:1400px;margin:0 auto;padding-block:20px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:16px}
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+h1{margin:0;font-size:22px;letter-spacing:.02em;text-wrap:balance}
+.sub{color:var(--muted);font-size:13px}
+.countdown{font-variant-numeric:tabular-nums}
+.countdown b{font-size:28px;color:var(--milestone);margin:0 2px}
+.strip{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{background:var(--chip);border-radius:999px;padding:4px 12px;font-size:13px;font-variant-numeric:tabular-nums;border:1px solid transparent}
+.chip.warn{background:var(--warn-bg);color:var(--warn);font-weight:700}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+.seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:var(--surface);color:var(--ink);padding:6px 12px;font:inherit;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line-strong)}
+.seg button[aria-pressed="true"]{background:var(--sure);color:#fff}
+.btn{border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);border-radius:8px;padding:7px 14px;font:inherit;cursor:pointer}
+.btn.primary{background:var(--sure);border-color:var(--sure);color:#fff;font-weight:700}
+.btn.danger{color:var(--warn);border-color:var(--warn)}
+.btn:disabled{opacity:.5;cursor:default}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,.row:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.board{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.scroller{overflow-x:auto;position:relative}
+.grid{position:relative;min-width:calc(var(--meta-w) + var(--tl-w))}
+.hrow,.row{display:flex;border-bottom:1px solid var(--line)}
+.meta{position:sticky;left:0;z-index:3;width:var(--meta-w);flex:none;background:var(--surface);border-right:1px solid var(--line-strong);padding:6px 12px;display:flex;flex-direction:column;justify-content:center;min-width:0}
+.hrow .meta{font-size:12px;color:var(--muted);justify-content:flex-end}
+.track{position:relative;width:var(--tl-w);flex:none}
+.hrow{height:52px;position:sticky;top:0;z-index:4;background:var(--surface)}
+.hrow .track{height:52px}
+.month{position:absolute;top:6px;font-size:13px;font-weight:700;padding-left:4px;white-space:nowrap}
+.month small{display:block;font-weight:400;color:var(--muted);font-size:11px}
+.wk{position:absolute;bottom:4px;font-size:10px;color:var(--muted);transform:translateX(-50%);font-variant-numeric:tabular-nums}
+.row{min-height:var(--row-h);cursor:pointer}
+.row:hover .meta,.row:hover .track{background:color-mix(in srgb,var(--chip) 60%,var(--surface))}
+.row.done .name{color:var(--muted)}
+.row.late .meta{box-shadow:inset 3px 0 0 var(--warn)}
+.name{font-weight:700;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row.late .name{color:var(--warn)}
+.who{font-size:11.5px;color:var(--muted);display:flex;gap:6px;align-items:center;white-space:nowrap;overflow:hidden}
+.st{font-size:10.5px;border-radius:4px;padding:0 6px;background:var(--chip)}
+.st.s-done{background:var(--done);color:#fff}
+.st.s-doing{background:var(--sure);color:#fff}
+.st.s-late{background:var(--warn);color:#fff}
+.vline{position:absolute;top:0;bottom:0;width:1px;background:var(--line);pointer-events:none}
+.vline.m{background:var(--line-strong)}
+.todaycol{position:absolute;top:0;bottom:0;background:var(--today-tint);border-left:2px dashed var(--today);pointer-events:none;z-index:1}
+.eventcol{position:absolute;top:0;bottom:0;background:color-mix(in srgb,var(--event) 45%,transparent);pointer-events:none;z-index:1}
+.flag{position:absolute;top:2px;font-size:10px;font-weight:700;padding:0 4px;border-radius:3px;color:#fff;z-index:5;white-space:nowrap;transform:translateX(-50%)}
+.flag.today{background:var(--today)}
+.flag.event{background:var(--milestone)}
+.bar{position:absolute;top:50%;height:18px;transform:translateY(-50%);border-radius:5px;z-index:2}
+.bar.sure{background:var(--sure)}
+.bar.tent{background:var(--tentative);border:1.5px dashed var(--tentative-edge)}
+.bar.done{background:var(--done)}
+.ms{position:absolute;top:50%;width:14px;height:14px;background:var(--milestone);transform:translate(-50%,-50%) rotate(45deg);z-index:2;border-radius:2px}
+.ms.tent{background:color-mix(in srgb,var(--milestone) 45%,var(--surface));border:1.5px dashed var(--milestone)}
+.ms.done{background:var(--done)}
+.blabel{position:absolute;top:50%;transform:translateY(-50%);font-size:11px;color:var(--muted);white-space:nowrap;z-index:2;font-variant-numeric:tabular-nums}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--muted);align-items:center}
+.legend i{display:inline-block;width:22px;height:10px;border-radius:3px;vertical-align:middle;margin-right:5px}
+.legend i.d{width:10px;height:10px;transform:rotate(45deg);border-radius:1px}
+.empty{padding:40px 20px;text-align:center;color:var(--muted)}
+.settings{display:flex;flex-wrap:wrap;gap:12px;align-items:center;font-size:13px}
+.settings label{display:flex;gap:6px;align-items:center}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line-strong);border-radius:6px;padding:6px 8px}
+/* edit sheet */
+.overlay{position:fixed;inset:0;background:rgba(10,14,20,.45);z-index:50;display:flex;align-items:center;justify-content:center;padding:16px}
+.sheet{background:var(--surface);border-radius:14px;width:min(520px,100%);max-height:calc(100% - 32px);overflow:auto;padding:20px;display:grid;gap:14px;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+.sheet h2{margin:0;font-size:17px}
+.f{display:grid;gap:4px}
+.f label{font-size:12px;color:var(--muted);font-weight:700}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.radios{display:flex;gap:6px;flex-wrap:wrap}
+.radios label{border:1px solid var(--line-strong);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px;color:var(--ink);font-weight:400}
+.radios input{position:absolute;opacity:0;pointer-events:none}
+.radios input:checked+span{font-weight:700}
+.radios label:has(input:checked){background:var(--sure);border-color:var(--sure);color:#fff}
+.radios label:has(input:focus-visible){outline:2px solid var(--focus);outline-offset:2px}
+.actions{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.actions .r{display:flex;gap:8px}
+.err{color:var(--warn);font-size:13px;min-height:1em}
+.confirm{background:var(--warn-bg);border-radius:8px;padding:10px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px}
+.note{font-size:12px;color:var(--muted)}
+.ro{font-size:12px;color:var(--muted);background:var(--chip);border-radius:8px;padding:6px 10px}
+@media (max-width:640px){:root{--meta-w:150px} .name{font-size:12.5px} .two{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:no-preference){.bar,.ms{transition:left .25s,width .25s}}
+
+.status{font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:center}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--done);display:inline-block}
+.dot.ok{background:#2E9D5B}.dot.err{background:var(--warn)}.dot.busy{background:var(--milestone)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;gap:14px}
+.panel h3{margin:0;font-size:14px}
+.panel .row2{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.panel .f input,.panel .f select{min-width:0}
+.banner{background:var(--chip);border-radius:10px;padding:10px 14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:13px}
+.toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:999px;font-size:13px;z-index:60}
+@media print{
+  @page{size:A4 landscape;margin:8mm}
+  body{background:#fff}
+  .toolbar,.panel,.banner,.toast,#overlay,.noprint{display:none!important}
+  .wrap{max-width:none;padding:0;gap:8px}
+  .board{border:0}
+  .scroller{overflow:visible}
+  .hrow{position:static}
+  .meta{position:static}
+  .row{break-inside:avoid;min-height:30px}
+  :root{--row-h:30px}
+  .grid{zoom:var(--print-zoom,1)}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>未来運動会 準備スケジュール</h1>
+      <div class="sub" id="eventLine"></div>
+    </div>
+    <div class="countdown" id="countdown" aria-live="polite"></div>
+  </header>
+
+  <div class="strip" id="summary"></div>
+
+  <div class="banner" id="syncBanner" hidden></div>
+
+  <div class="toolbar">
+    <div class="seg" role="group" aria-label="担当で絞り込み" id="filter">
+      <button type="button" data-f="all" aria-pressed="true">全員分</button>
+      <button type="button" data-f="安部" aria-pressed="false">安部</button>
+      <button type="button" data-f="鈴木" aria-pressed="false">鈴木</button>
+      <button type="button" data-f="open" aria-pressed="false">未完了だけ</button>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <span class="status" id="syncStatus"><span class="dot"></span><span>この端末だけに保存</span></span>
+      <button class="btn" type="button" id="syncBtn" hidden>今すぐ同期</button>
+      <button class="btn" type="button" id="printBtn">印刷</button>
+      <button class="btn" type="button" id="settingsBtn" aria-expanded="false">設定・連携</button>
+      <button class="btn primary" type="button" id="addBtn">+ タスクを追加</button>
+    </div>
+  </div>
+
+  <section class="panel" id="settingsPanel" hidden>
+    <h3>表示の設定</h3>
+    <div class="row2">
+      <div class="f"><label for="setEvent">開催日</label><input type="date" id="setEvent"></div>
+      <div class="f"><label for="setStart">表示開始日</label><input type="date" id="setStart"></div>
+      <div class="f"><label for="setWeeks">表示する週数</label><input type="number" id="setWeeks" min="8" max="80" style="width:6em"></div>
+      <button class="btn" type="button" id="saveSettings">表示の設定を保存</button>
+    </div>
+    <h3>Googleスプレッドシート連携(2人で同じデータを使う)</h3>
+    <p class="note" style="margin:0">設置手順はリポジトリの <b>undoukai/README.md</b> にあります。URLと合言葉は、安部さん・鈴木さんの端末それぞれで同じものを入力してください。</p>
+    <div class="row2">
+      <div class="f" style="flex:1 1 320px"><label for="cUrl">ウェブアプリのURL</label><input id="cUrl" placeholder="https://script.google.com/macros/s/…/exec"></div>
+      <div class="f"><label for="cKey">合言葉</label><input id="cKey" type="password" autocomplete="off"></div>
+      <div class="f"><label for="cName">あなたの名前(更新者として記録)</label><input id="cName" list="owners" style="width:9em"></div>
+    </div>
+    <div class="row2">
+      <button class="btn primary" type="button" id="connectBtn">接続して読み込む</button>
+      <button class="btn" type="button" id="disconnectBtn">連携を解除</button>
+      <span class="note" id="connMsg"></span>
+    </div>
+    <h3>バックアップ</h3>
+    <div class="row2">
+      <button class="btn" type="button" id="exportBtn">バックアップを書き出す</button>
+      <label class="btn" for="importFile" style="display:inline-block">バックアップを読み込む</label>
+      <input type="file" id="importFile" accept="application/json,.json" hidden>
+      <span class="note" id="backupMsg"></span>
+    </div>
+  </section>
+
+  <div class="board">
+    <div class="scroller" id="scroller">
+      <div class="grid" id="grid"></div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span><i style="background:var(--sure)"></i>時期が確定</span>
+    <span><i style="background:var(--tentative);border:1.5px dashed var(--tentative-edge)"></i>時期は仮置き</span>
+    <span><i style="background:var(--done)"></i>完了</span>
+    <span><i class="d" style="background:var(--milestone)"></i>期限・イベント(開始日=終了日)</span>
+    <span><i style="background:var(--today-tint);border-left:2px dashed var(--today)"></i>今日</span>
+    <span style="color:var(--warn);font-weight:700">赤字=終了日を過ぎて未完了</span>
+  </div>
+  <p class="note noprint" style="margin:0">行をクリックすると編集できます。タスクは開始日の早い順に自動で並びます。</p>
+</div>
+<div class="overlay" id="overlay" hidden>
+  <form class="sheet" id="form" novalidate>
+    <h2 id="formTitle">タスクを編集</h2>
+    <div class="f"><label for="fName">タスク名</label><input id="fName" required maxlength="60"></div>
+    <div class="f"><label for="fOwner">担当</label>
+      <input id="fOwner" list="owners" maxlength="20" placeholder="例:安部">
+      <datalist id="owners"><option value="安部"><option value="鈴木"><option value="安部・鈴木"><option value="全員"><option value="各組合"><option value="安部・各組合"></datalist>
+    </div>
+    <div class="two">
+      <div class="f"><label for="fStart">開始日</label><input type="date" id="fStart" required></div>
+      <div class="f"><label for="fEnd">終了日</label><input type="date" id="fEnd" required></div>
+    </div>
+    <p class="note" style="margin:-6px 0 0">開始日と終了日を同じ日にすると、期限・イベント(◆)として表示されます。</p>
+    <div class="f"><label>時期</label>
+      <div class="radios" role="radiogroup" aria-label="時期">
+        <label><input type="radio" name="cert" value="確定"><span>確定</span></label>
+        <label><input type="radio" name="cert" value="仮"><span>仮</span></label>
+      </div>
+    </div>
+    <div class="f"><label>状況</label>
+      <div class="radios" role="radiogroup" aria-label="状況">
+        <label><input type="radio" name="status" value="未着手"><span>未着手</span></label>
+        <label><input type="radio" name="status" value="進行中"><span>進行中</span></label>
+        <label><input type="radio" name="status" value="完了"><span>完了</span></label>
+      </div>
+    </div>
+    <div class="f"><label for="fMemo">メモ</label><textarea id="fMemo" rows="3" maxlength="300"></textarea></div>
+    <div class="err" id="fErr" role="alert"></div>
+    <div class="confirm" id="confirmDel" hidden>このタスクを削除しますか?元に戻せません。
+      <button class="btn danger" type="button" id="doDel">削除する</button>
+      <button class="btn" type="button" id="noDel">やめる</button>
+    </div>
+    <div class="actions">
+      <button class="btn danger" type="button" id="delBtn">削除</button>
+      <div class="r">
+        <button class="btn" type="button" id="cancelBtn">閉じる</button>
+        <button class="btn primary" type="submit" id="saveBtn">保存</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+<script>
+const SEED=[{"id": "t01", "name": "第1回打ち合わせ", "owner": "安部・鈴木", "start": "2026-09-30", "end": "2026-09-30", "certainty": "確定", "status": "完了", "memo": "企画の方向性を決定"}, {"id": "t02", "name": "会場の下見", "owner": "安部・鈴木", "start": "2026-10-19", "end": "2026-10-19", "certainty": "確定", "status": "完了", "memo": "総合運動場にサッカーゴールがないことが分かった"}, {"id": "t03", "name": "10月全体会議", "owner": "全員", "start": "2026-10-29", "end": "2026-10-29", "certainty": "仮", "status": "未着手", "memo": "企画内容の共有・テーマ検討。日付は未定のため仮置き"}, {"id": "t04", "name": "11月全体会議", "owner": "全員", "start": "2026-11-26", "end": "2026-11-26", "certainty": "仮", "status": "未着手", "memo": "テーマ決定・チラシデザイン検討。日付は未定のため仮置き"}, {"id": "t05", "name": "会場の予約(3施設)", "owner": "安部", "start": "2026-10-22", "end": "2026-12-25", "certainty": "仮", "status": "未着手", "memo": "予約の受付開始日を施設に確認し、取れる日に押さえる"}, {"id": "t06", "name": "サッカー方法・アトラクション場所", "owner": "安部・鈴木", "start": "2026-10-22", "end": "2026-11-26", "certainty": "仮", "status": "未着手", "memo": "11月全体会議で決定。備品・送迎にも影響するため最優先"}, {"id": "t07", "name": "子ども向けアトラクションの選定", "owner": "鈴木", "start": "2026-11-02", "end": "2026-12-18", "certainty": "仮", "status": "未着手", "memo": "19案から選び、準備物リストに追加"}, {"id": "t08", "name": "競技責任者の人選", "owner": "安部", "start": "2026-11-02", "end": "2027-01-29", "certainty": "仮", "status": "未着手", "memo": "種目ごとに1人"}, {"id": "t09", "name": "借用品の確認(綱の試し)", "owner": "鈴木", "start": "2026-11-02", "end": "2026-12-18", "certainty": "仮", "status": "未着手", "memo": "使えない場合は購入(約4万円)"}, {"id": "t10", "name": "簡易チラシ(多言語)", "owner": "安部", "start": "2026-12-01", "end": "2027-01-29", "certainty": "確定", "status": "未着手", "memo": "12月作成→1月頃配布。インドネシア語・ミャンマー語版も"}, {"id": "t11", "name": "本チラシ・申込書", "owner": "安部", "start": "2027-01-05", "end": "2027-02-12", "certainty": "確定", "status": "未着手", "memo": "持ち物・保険の案内を載せる"}, {"id": "t12", "name": "参加申込の受付", "owner": "安部", "start": "2027-02-15", "end": "2027-03-15", "certainty": "仮", "status": "未着手", "memo": "2月中旬開始は決定。締切3/15頃は提案"}, {"id": "t13", "name": "参加者・チームの確定", "owner": "安部・各組合", "start": "2027-03-19", "end": "2027-03-19", "certainty": "仮", "status": "未着手", "memo": "チーム分けは組合に一任"}, {"id": "t14", "name": "送迎バス", "owner": "安部", "start": "2027-01-05", "end": "2027-03-26", "certainty": "仮", "status": "未着手", "memo": "見積・仮予約は早めに、台数は申込後に確定"}, {"id": "t15", "name": "備品の購入", "owner": "鈴木", "start": "2027-02-01", "end": "2027-03-31", "certainty": "仮", "status": "未着手", "memo": "購入品見積リストをもとに発注"}, {"id": "t16", "name": "表彰の準備(賞品・記念品)", "owner": "鈴木", "start": "2027-02-01", "end": "2027-04-09", "certainty": "仮", "status": "未着手", "memo": "JLPT結果は1月下旬に出るので2月に合格者を確認"}, {"id": "t17", "name": "プログラム・進行台本", "owner": "安部・鈴木", "start": "2027-03-01", "end": "2027-04-09", "certainty": "仮", "status": "未着手", "memo": "会場間の移動・雨天時の流れも書く"}, {"id": "t18", "name": "リハーサル", "owner": "全員", "start": "2027-03-15", "end": "2027-03-31", "certainty": "確定", "status": "未着手", "memo": "3月頃。会場で動線を確認"}, {"id": "t19", "name": "保険・受付・名札", "owner": "安部", "start": "2027-03-29", "end": "2027-04-16", "certainty": "仮", "status": "未着手", "memo": "人数確定後。保険の締切を確認"}, {"id": "t20", "name": "前日準備・雨天判断", "owner": "全員", "start": "2027-04-23", "end": "2027-04-23", "certainty": "仮", "status": "未着手", "memo": "雨天判断の時刻と連絡方法を事前に決める"}, {"id": "t21", "name": "開催", "owner": "全員", "start": "2027-04-24", "end": "2027-04-24", "certainty": "確定", "status": "未着手", "memo": "10:00〜16:30"}, {"id": "t22", "name": "反省会", "owner": "全員", "start": "2027-05-06", "end": "2027-05-21", "certainty": "仮", "status": "未着手", "memo": "開催後2〜4週間以内に"}];
+(function(){
+  const DAY=86400000, PX=4.2;
+  const DEF={eventDate:"2027-04-24",viewStart:"2026-09-28",weeks:36};
+  const K={tasks:"undoukai.tasks",settings:"undoukai.settings",conn:"undoukai.conn",pending:"undoukai.pending",filter:"undoukai.filter"};
+  const $=s=>document.querySelector(s);
+  const toD=s=>{if(!s)return null;const m=/^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(String(s));if(!m)return null;return Date.UTC(+m[1],+m[2]-1,+m[3])};
+  const toS=t=>new Date(t).toISOString().slice(0,10);
+  const now=new Date(); const TODAY=Date.UTC(now.getFullYear(),now.getMonth(),now.getDate());
+  const WD=["日","月","火","水","木","金","土"];
+  const fmtMD=t=>{const d=new Date(t);return (d.getUTCMonth()+1)+"/"+d.getUTCDate()};
+  const fmtFull=t=>{const d=new Date(t);return d.getUTCFullYear()+"年"+(d.getUTCMonth()+1)+"月"+d.getUTCDate()+"日("+WD[d.getUTCDay()]+")"};
+  const load=(k,f)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):f}catch(e){return f}};
+  const save=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+
+  let tasks=load(K.tasks,null); if(!Array.isArray(tasks)){tasks=SEED.map(t=>({...t}));save(K.tasks,tasks)}
+  let settings={...DEF,...load(K.settings,{})};
+  let conn=load(K.conn,{url:"",key:"",name:""});
+  let pending=load(K.pending,{}); // id -> "upsert" | "delete"
+  let filter=load(K.filter,"all"), editing=null, busy=false, lastErr="";
+  const linked=()=>!!(conn.url&&conn.key);
+
+  function toast(msg){const t=$("#toast");t.textContent=msg;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,2600)}
+  function setStatus(kind,text){$("#syncStatus").innerHTML='<span class="dot '+kind+'"></span><span></span>';$("#syncStatus").lastChild.textContent=text}
+  function refreshStatus(){
+    $("#syncBtn").hidden=!linked();
+    if(!linked()){setStatus("","この端末だけに保存");return}
+    const n=Object.keys(pending).length;
+    if(busy)setStatus("busy","同期中…");
+    else if(lastErr)setStatus("err","同期できませんでした"+(n?"(未送信 "+n+"件)":""));
+    else if(n)setStatus("busy","未送信 "+n+"件");
+    else setStatus("ok","スプレッドシートと同期済み");
+  }
+
+  // ---------- API (Google Apps Script)
+  async function api(action,payload){
+    const res=await fetch(conn.url,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({action,key:conn.key,by:conn.name||"",...payload})});
+    const j=await res.json();
+    if(!j.ok)throw new Error(j.error||"エラーが発生しました");
+    return j;
+  }
+  async function pull(){
+    if(!linked()||busy)return;
+    if(Object.keys(pending).length){await flush();return}
+    busy=true;refreshStatus();
+    try{
+      const j=await api("list",{});
+      if(!j.tasks.length&&tasks.length){showEmptySheetBanner()}
+      else{tasks=j.tasks;save(K.tasks,tasks);$("#syncBanner").hidden=true}
+      if(j.settings&&Object.keys(j.settings).length){settings={...DEF,...j.settings};save(K.settings,settings)}
+      lastErr="";
+    }catch(e){lastErr=e.message}
+    busy=false;refreshStatus();render();
+  }
+  async function flush(){
+    if(!linked()||busy)return;
+    const ids=Object.keys(pending); if(!ids.length)return;
+    busy=true;refreshStatus();
+    try{
+      let j=null;
+      for(const id of ids){
+        if(pending[id]==="delete") j=await api("delete",{id});
+        else{const t=tasks.find(x=>x.id===id); if(t) j=await api("upsert",{task:t});}
+        delete pending[id]; save(K.pending,pending);
+      }
+      if(j&&j.tasks){tasks=j.tasks;save(K.tasks,tasks)}
+      lastErr="";
+    }catch(e){lastErr=e.message;toast("同期できませんでした:"+e.message)}
+    busy=false;refreshStatus();render();
+  }
+  function showEmptySheetBanner(){
+    const b=$("#syncBanner");b.hidden=false;b.innerHTML="";
+    const s=document.createElement("span");s.textContent="スプレッドシートにまだタスクがありません。この端末の "+tasks.length+" 件を送りますか?";
+    const ok=document.createElement("button");ok.className="btn primary";ok.type="button";ok.textContent="この端末のデータを送る";
+    ok.onclick=async()=>{ok.disabled=true;try{busy=true;refreshStatus();const j=await api("replaceAll",{tasks,settings});tasks=j.tasks;settings={...DEF,...j.settings};save(K.tasks,tasks);save(K.settings,settings);pending={};save(K.pending,pending);lastErr="";b.hidden=true;toast("スプレッドシートに送りました")}catch(e){lastErr=e.message;toast("送れませんでした:"+e.message)}busy=false;refreshStatus();render()};
+    b.append(s,ok);
+  }
+  function commit(id,op){
+    if(linked()){pending[id]=op;save(K.pending,pending);flush()}
+    save(K.tasks,tasks);refreshStatus();render();
+  }
+
+  // ---------- render
+  function mondayOf(t){const wd=new Date(t).getUTCDay();return t-((wd+6)%7)*DAY}
+  function isLate(t){return t.end&&toD(t.end)<TODAY&&t.status!=="完了"}
+  function renderHeader(){
+    const ev=toD(settings.eventDate)||toD(DEF.eventDate);
+    $("#eventLine").textContent="開催日 "+fmtFull(ev)+"・杵築市総合運動場/つぶらなカボスアリーナ";
+    const left=Math.round((ev-TODAY)/DAY);
+    $("#countdown").innerHTML=left>0?"開催まで あと<b>"+left+"</b>日":left===0?"<b>今日が開催日</b>":"開催済み";
+    const total=tasks.length, done=tasks.filter(t=>t.status==="完了").length, doing=tasks.filter(t=>t.status==="進行中").length, late=tasks.filter(isLate).length;
+    const s=$("#summary"); s.innerHTML="";
+    ["全"+total+"件","完了 "+done,"進行中 "+doing,"未着手 "+(total-done-doing)].forEach(t=>{const c=document.createElement("span");c.className="chip";c.textContent=t;s.appendChild(c)});
+    if(late){const c=document.createElement("span");c.className="chip warn";c.textContent="遅れ "+late+"件";s.appendChild(c)}
+  }
+  function render(){
+    renderHeader();
+    document.querySelectorAll("#filter button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.f===filter)));
+    const grid=$("#grid"); grid.innerHTML="";
+    const start=mondayOf(toD(settings.viewStart)||toD(DEF.viewStart));
+    const weeks=Math.max(8,Math.min(80,Number(settings.weeks)||DEF.weeks));
+    const end=start+weeks*7*DAY, W=weeks*7*PX;
+    grid.style.setProperty("--tl-w",W+"px");
+    const X=t=>(t-start)/DAY*PX;
+    const ev=toD(settings.eventDate)||toD(DEF.eventDate);
+    const h=document.createElement("div"); h.className="hrow";
+    const hm=document.createElement("div"); hm.className="meta"; hm.textContent="タスク / 担当"; h.appendChild(hm);
+    const ht=document.createElement("div"); ht.className="track"; h.appendChild(ht);
+    for(let i=0;i<weeks;i++){const t=start+i*7*DAY;const w=document.createElement("span");w.className="wk";w.style.left=(X(t)+3.5*PX)+"px";w.textContent=new Date(t).getUTCDate();ht.appendChild(w)}
+    let d=new Date(start); d=Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),1);
+    let firstLabel=true;
+    while(d<end){
+      const x=Math.max(0,X(d)); const dt=new Date(d);
+      const nextM=Date.UTC(dt.getUTCFullYear(),dt.getUTCMonth()+1,1);
+      if(d<start&&(nextM-start)/DAY<18){d=nextM;continue}
+      const mo=document.createElement("div"); mo.className="month"; mo.style.left=x+"px";
+      const months=Math.round((ev-d)/(DAY*30.4));
+      mo.textContent=(dt.getUTCMonth()===0||firstLabel?dt.getUTCFullYear()+"年":"")+(dt.getUTCMonth()+1)+"月";
+      const sm=document.createElement("small"); sm.textContent=months>0?"開催"+months+"ヶ月前":months===0?"開催月":"開催後"; mo.appendChild(sm);
+      ht.appendChild(mo); firstLabel=false;
+      d=nextM;
+    }
+    grid.appendChild(h);
+    let list=tasks.slice().sort((a,b)=>(toD(a.start)||9e15)-(toD(b.start)||9e15)||(toD(a.end)||0)-(toD(b.end)||0)||String(a.name).localeCompare(b.name,"ja"));
+    if(filter==="安部"||filter==="鈴木") list=list.filter(t=>String(t.owner||"").includes(filter)||t.owner==="全員");
+    if(filter==="open") list=list.filter(t=>t.status!=="完了");
+    if(!list.length){const e=document.createElement("div");e.className="empty";e.textContent=tasks.length?"この条件に当てはまるタスクはありません。":"まだタスクがありません。「+ タスクを追加」から最初のタスクを登録してください。";grid.appendChild(e)}
+    list.forEach(t=>{
+      const late=isLate(t);
+      const r=document.createElement("div"); r.className="row"+(t.status==="完了"?" done":"")+(late?" late":"");
+      r.tabIndex=0; r.setAttribute("role","button"); r.setAttribute("aria-label",(t.name||"")+"を編集");
+      const m=document.createElement("div"); m.className="meta";
+      const n=document.createElement("div"); n.className="name"; n.textContent=(pending[t.id]?"● ":"")+(t.name||"(名前なし)"); n.title=(t.name||"")+(t.memo?"\n"+t.memo:"")+(t.updatedBy?"\n更新:"+t.updatedBy+" "+(t.updatedAt||""):"");
+      const w=document.createElement("div"); w.className="who";
+      const st=document.createElement("span"); st.className="st"+(late?" s-late":t.status==="完了"?" s-done":t.status==="進行中"?" s-doing":"");
+      st.textContent=late?"遅れ":(t.status||"未着手");
+      const o=document.createElement("span"); o.textContent=(t.owner||"担当未定")+(t.start?" ・ "+fmtMD(toD(t.start))+(t.end&&t.end!==t.start?"〜"+fmtMD(toD(t.end)):""):"");
+      w.append(st,o); m.append(n,w);
+      const tr=document.createElement("div"); tr.className="track";
+      for(let i=0;i<=weeks;i++){const v=document.createElement("div");const tt=start+i*7*DAY;v.className="vline"+(new Date(tt).getUTCDate()<=7?" m":"");v.style.left=X(tt)+"px";tr.appendChild(v)}
+      const s0=toD(t.start), e0=toD(t.end)||s0;
+      if(s0!=null){
+        const cls=t.status==="完了"?"done":t.certainty==="確定"?"sure":"tent";
+        if(s0===e0){const ms=document.createElement("div");ms.className="ms "+(cls==="sure"?"":cls);ms.style.left=X(s0+DAY/2)+"px";tr.appendChild(ms);
+          const lb=document.createElement("span");lb.className="blabel";lb.style.left=(X(s0+DAY/2)+12)+"px";lb.textContent=fmtMD(s0);tr.appendChild(lb)}
+        else{const b=document.createElement("div");b.className="bar "+cls;b.style.left=Math.max(0,X(s0))+"px";b.style.width=Math.max(4,X(e0+DAY)-Math.max(0,X(s0)))+"px";tr.appendChild(b)}
+      }
+      r.append(m,tr);
+      r.addEventListener("click",()=>openForm(t));
+      r.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openForm(t)}});
+      grid.appendChild(r);
+    });
+    const ov=(cls,t,flag,txt)=>{if(t<start||t>=end)return;const c=document.createElement("div");c.className=cls;c.style.left="calc(var(--meta-w) + "+X(t)+"px)";c.style.width=PX+"px";grid.appendChild(c);
+      const f=document.createElement("div");f.className="flag "+flag;f.style.left="calc(var(--meta-w) + "+(X(t)+PX/2)+"px)";f.textContent=txt;grid.appendChild(f)};
+    ov("eventcol",ev,"event","開催日");
+    ov("todaycol",TODAY,"today","今日");
+  }
+
+  // ---------- edit form
+  function openForm(t){
+    editing=t||null; $("#fErr").textContent=""; $("#confirmDel").hidden=true;
+    $("#formTitle").textContent=t?"タスクを編集":"タスクを追加";
+    $("#fName").value=t?.name||""; $("#fOwner").value=t?.owner||conn.name||"";
+    const base=toS(TODAY);
+    $("#fStart").value=t?.start||base; $("#fEnd").value=t?.end||base;
+    document.querySelectorAll('input[name="cert"]').forEach(i=>i.checked=i.value===(t?.certainty||"仮"));
+    document.querySelectorAll('input[name="status"]').forEach(i=>i.checked=i.value===(t?.status||"未着手"));
+    $("#fMemo").value=t?.memo||"";
+    $("#delBtn").hidden=!t;
+    $("#overlay").hidden=false; setTimeout(()=>$("#fName").focus(),0);
+  }
+  function closeForm(){$("#overlay").hidden=true;editing=null}
+  $("#cancelBtn").addEventListener("click",closeForm);
+  $("#overlay").addEventListener("click",e=>{if(e.target.id==="overlay")closeForm()});
+  document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("#overlay").hidden)closeForm()});
+  $("#addBtn").addEventListener("click",()=>openForm(null));
+  $("#form").addEventListener("submit",e=>{
+    e.preventDefault();
+    const data={name:$("#fName").value.trim(),owner:$("#fOwner").value.trim(),start:$("#fStart").value,end:$("#fEnd").value,
+      certainty:(document.querySelector('input[name="cert"]:checked')||{}).value||"仮",
+      status:(document.querySelector('input[name="status"]:checked')||{}).value||"未着手",
+      memo:$("#fMemo").value.trim()};
+    if(!data.name){$("#fErr").textContent="タスク名を入力してください。";return}
+    if(!data.start||!data.end){$("#fErr").textContent="開始日と終了日を入力してください。";return}
+    if(data.end<data.start){$("#fErr").textContent="終了日が開始日より前になっています。日付を確認してください。";return}
+    let id;
+    if(editing){id=editing.id;Object.assign(editing,data,{updatedBy:conn.name||editing.updatedBy||""})}
+    else{id="t"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);tasks.push({id,...data,updatedBy:conn.name||""})}
+    closeForm(); commit(id,"upsert"); toast("保存しました");
+  });
+  $("#delBtn").addEventListener("click",()=>{$("#confirmDel").hidden=false});
+  $("#noDel").addEventListener("click",()=>{$("#confirmDel").hidden=true});
+  $("#doDel").addEventListener("click",()=>{
+    if(!editing)return; const id=editing.id; tasks=tasks.filter(t=>t.id!==id); closeForm(); commit(id,"delete"); toast("削除しました");
+  });
+
+  // ---------- toolbar
+  document.querySelectorAll("#filter button").forEach(b=>b.addEventListener("click",()=>{filter=b.dataset.f;save(K.filter,filter);render()}));
+  $("#printBtn").addEventListener("click",()=>window.print());
+  window.addEventListener("beforeprint",()=>{const g=$("#grid");g.style.setProperty("--print-zoom",String(Math.min(1,1040/g.scrollWidth)))});
+  window.addEventListener("afterprint",()=>$("#grid").style.removeProperty("--print-zoom"));
+  $("#syncBtn").addEventListener("click",()=>{lastErr="";Object.keys(pending).length?flush():pull()});
+  $("#settingsBtn").addEventListener("click",()=>{
+    const p=$("#settingsPanel");p.hidden=!p.hidden;$("#settingsBtn").setAttribute("aria-expanded",String(!p.hidden));
+    $("#setEvent").value=settings.eventDate;$("#setStart").value=settings.viewStart;$("#setWeeks").value=settings.weeks;
+    $("#cUrl").value=conn.url;$("#cKey").value=conn.key;$("#cName").value=conn.name;$("#connMsg").textContent=linked()?"連携中です":"";
+  });
+  $("#saveSettings").addEventListener("click",async()=>{
+    settings={eventDate:$("#setEvent").value||DEF.eventDate,viewStart:$("#setStart").value||DEF.viewStart,weeks:Math.max(8,Math.min(80,Number($("#setWeeks").value)||DEF.weeks))};
+    save(K.settings,settings);render();toast("表示の設定を保存しました");
+    if(linked()){try{await api("saveSettings",{settings})}catch(e){toast("スプレッドシートに保存できませんでした:"+e.message)}}
+  });
+  $("#connectBtn").addEventListener("click",async()=>{
+    const url=$("#cUrl").value.trim(), key=$("#cKey").value, name=$("#cName").value.trim();
+    if(!/^https:\/\/script\.google\.com\/.+\/exec/.test(url)){$("#connMsg").textContent="URLは https://script.google.com/…/exec の形で入力してください。";return}
+    if(!key){$("#connMsg").textContent="合言葉を入力してください。";return}
+    $("#connMsg").textContent="接続しています…";
+    const prev=conn; conn={url,key,name};
+    try{await api("ping",{});save(K.conn,conn);$("#connMsg").textContent="接続しました。スプレッドシートのデータを読み込みます。";await pull()}
+    catch(e){conn=prev;$("#connMsg").textContent="接続できませんでした:"+e.message}
+    refreshStatus();
+  });
+  $("#disconnectBtn").addEventListener("click",()=>{conn={url:"",key:"",name:conn.name};save(K.conn,conn);pending={};save(K.pending,pending);lastErr="";$("#connMsg").textContent="連携を解除しました。この端末のデータはそのまま残ります。";refreshStatus();render()});
+  $("#exportBtn").addEventListener("click",()=>{
+    const blob=new Blob([JSON.stringify({app:"undoukai-schedule",exportedAt:new Date().toISOString(),settings,tasks},null,2)],{type:"application/json"});
+    const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="未来運動会_スケジュール_"+toS(TODAY)+".json";document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);
+    $("#backupMsg").textContent="書き出しました";
+  });
+  $("#importFile").addEventListener("change",async e=>{
+    const f=e.target.files[0]; if(!f)return;
+    try{const j=JSON.parse(await f.text()); if(!Array.isArray(j.tasks))throw new Error("形式が違います");
+      tasks=j.tasks; if(j.settings)settings={...DEF,...j.settings}; save(K.tasks,tasks); save(K.settings,settings); render();
+      $("#backupMsg").textContent="読み込みました("+tasks.length+"件)";
+      if(linked()){showEmptySheetBanner();$("#syncBanner").firstChild.textContent="読み込んだ "+tasks.length+" 件で、スプレッドシートの内容を置き換えますか?"}
+    }catch(err){$("#backupMsg").textContent="読み込めませんでした:"+err.message}
+    e.target.value="";
+  });
+
+  render(); refreshStatus();
+  if(linked()) pull();
+  setInterval(()=>{if(linked()&&document.visibilityState==="visible"&&$("#overlay").hidden)pull()},60000);
+  document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&linked())pull()});
+})();
+
+</script>
+</body>
+</html>
